@@ -1,0 +1,198 @@
+openapi: 3.0.0
+info:
+  title: PBX Central Foundation API
+  version: 1.0.0
+  description: Multi-tenant PBX Management API
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local Dev Server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        domain:
+          type: string
+        timezone:
+          type: string
+      required: [id, name, domain]
+
+    Extension:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        extension_number:
+          type: string
+        # Secrets like password are not returned in list views typically, maybe on Create only
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+      required: [id, extension_number]
+
+    ExtensionCreate:
+      type: object
+      properties:
+        extension_number:
+          type: string
+          example: "100"
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+      required: [extension_number]
+
+    ExtensionCredentials:
+      type: object
+      description: Returned only on creation
+      properties:
+        auth_username:
+          type: string
+        auth_password:
+          type: string
+
+    Queue:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        strategy:
+          type: string
+          enum: [ring-all, round-robin, longest-idle-agent]
+      required: [id, name, strategy]
+
+security:
+  - BearerAuth: []
+
+paths:
+  /auth/login:
+    post:
+      summary: Login and get JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required: [email, password]
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+
+  /tenants:
+    get:
+      summary: List tenants (Super Admin)
+      responses:
+        '200':
+          description: List of tenants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tenant'
+    post:
+      summary: Create new tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                domain: { type: string }
+              required: [name, domain]
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+
+  /tenants/{tenantId}/extensions:
+    parameters:
+      - in: path
+        name: tenantId
+        schema:
+          type: string
+          format: uuid
+        required: true
+    get:
+      summary: List extensions for tenant
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Extension'
+    post:
+      summary: Create extension
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtensionCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Extension'
+                  - $ref: '#/components/schemas/ExtensionCredentials'
+
+  /tenants/{tenantId}/queues:
+    parameters:
+      - in: path
+        name: tenantId
+        schema:
+          type: string
+          format: uuid
+        required: true
+    get:
+      summary: List queues
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Queue'
